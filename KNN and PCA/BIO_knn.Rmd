@@ -1,0 +1,199 @@
+---
+title: "AMST2"
+author: "qihan zou"
+date: "2024-05-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(readxl)
+library(FNN)
+library(caTools) 
+library(class)
+full_data = read_excel("C:/Users/qihan/Desktop/CTG_Qihan.xls", sheet = 2)
+#useful_vars = c("LB", "AC...11", "FM...12", "UC...13", "DL...14", "DS...15", #"DP...16", "ASTV",
+#                "MSTV", "ALTV", "MLTV", "Width","Min", "Max", "Nmax", #"Nzeros", "Mode", "Mean",
+#                "Median", "Variance", "Tendency", "CLASS", "NSP")
+
+#useful_vars = c("LB", "AC...11", "FM...12", "UC...13", "DL...14", "DS...15", 
+#                "DP...16", "ASTV",  "MSTV", "ALTV", "MLTV", "Width","Min", 
+#                "Max", "Nmax", "Nzeros","Mean","Variance", "Tendency", 
+#                "CLASS", "NSP")
+
+useful_vars = c("LB","AC...11", "FM...12", "UC...13", "DP...16", "ASTV",
+                "MSTV", "ALTV", "MLTV", "Min", "Mean", "Mode", "Median", "CLASS", "NSP")
+
+reduce_data = full_data[useful_vars]
+#dim(reduce_data)
+#colnames(reduce_data)[2] <- "AC"
+#colnames(reduce_data)[3] <- "FM"
+#colnames(reduce_data)[4] <- "UC"
+#colnames(reduce_data)[5] <- "DL"
+#colnames(reduce_data)[6] <- "DS"
+#colnames(reduce_data)[7] <- "DP"
+```
+
+
+```{r}
+# Splitting data into train and test data 
+set.seed(2024) 
+split <- sample.split(reduce_data$LB, SplitRatio = 0.7) 
+train_data <- subset(reduce_data, split == "TRUE") 
+test_data <- subset(reduce_data, split == "FALSE")
+
+x.comb = data.frame(train_data[, 1:(length(useful_vars)-2)])
+x.test = data.frame(test_data[, 1:(length(useful_vars)-2)])
+
+y.comb = data.frame(train_data$NSP)
+y.test = data.frame(test_data$NSP)
+
+# Partition the combined set into k parts
+cv.k <- 10
+n.comb <- dim(y.comb)[1]
+if (n.comb %% cv.k == 0) {
+# Equal groups possible
+split.ind <- rep(1:cv.k, each = floor(n.comb/cv.k))
+} else {
+# If groups are unequal, add the remaining terms
+split.ind <- c(rep(1:cv.k, each = floor(n.comb/cv.k)),
+1:(n.comb %% cv.k))
+}
+split.ind <- sample(split.ind) # randomising
+
+
+
+CV.error <- function(x.comb, y.comb, split.ind, nn.k, cv.k){
+misClassError = 0
+for (j in 1:cv.k) {
+x.tune <- data.frame(x.comb[split.ind == j,])
+y.tune <- data.frame(y.comb[split.ind == j,])
+x.train <- data.frame(x.comb[split.ind != j,])
+y.train <- data.frame(y.comb[split.ind != j,])
+
+classifier_knn <- knn(train = x.train, 
+                      test = x.tune, 
+                      cl = y.train[,1, drop = TRUE], 
+                      k = nn.k)
+
+
+cm = table(y.tune[,1, drop = TRUE], classifier_knn)
+Accuracy = (cm[1] + cm[5] + cm[9])/sum(cm)
+misClassError = misClassError + mean(classifier_knn != y.tune[,1, drop = TRUE]) 
+}
+return(misClassError/cv.k)
+}
+
+
+K <- 50 # Largest choice of k
+cv.err.k <- rep(0,K) # Vector of errors
+for (nn.k in 1:K) {
+cv.err.k[nn.k] <- CV.error(x.comb, y.comb, split.ind,nn.k, cv.k)
+}
+cv.min.k <- which.min(cv.err.k) # k with smallest error
+c(cv.min.k, min(cv.err.k))
+plot(1:50, cv.err.k, xlab = 'k values', ylab = 'mis-Class Error', main = 'mis-Class Error and k-values plot')
+```
+
+
+
+
+
+
+```{r}
+# Fitting KNN Model to training dataset 
+classifier_knn <- knn(train = x.comb, 
+                      test = x.test, 
+                      cl = y.comb[,1, drop = TRUE], 
+                      k = 1) 
+# Confusiin Matrix
+(cm = table(y.test[,1, drop = TRUE], classifier_knn))
+(Accuracy = (cm[1] + cm[5] + cm[9])/sum(cm))
+misClassError <- mean(classifier_knn != y.test[,1, drop = TRUE]) 
+print(paste('Accuracy =', 1-misClassError))
+```
+
+
+
+
+
+
+```{r}
+# Splitting data into train and test data 
+set.seed(2024) 
+split <- sample.split(reduce_data$LB, SplitRatio = 0.7) 
+train_data <- subset(reduce_data, split == "TRUE") 
+test_data <- subset(reduce_data, split == "FALSE")
+
+x.comb = data.frame(train_data[,1:(length(useful_vars)-2)])
+x.test = data.frame(test_data[, 1:(length(useful_vars)-2)])
+
+y.comb = data.frame(train_data$CLASS)
+y.test = data.frame(test_data$CLASS)
+
+# Partition the combined set into k parts
+cv.k <- 10
+n.comb <- dim(y.comb)[1]
+if (n.comb %% cv.k == 0) {
+# Equal groups possible
+split.ind <- rep(1:cv.k, each = floor(n.comb/cv.k))
+} else {
+# If groups are unequal, add the remaining terms
+split.ind <- c(rep(1:cv.k, each = floor(n.comb/cv.k)),
+1:(n.comb %% cv.k))
+}
+split.ind <- sample(split.ind) # randomising
+
+
+
+CV.error <- function(x.comb, y.comb, split.ind, nn.k, cv.k){
+misClassError = 0
+for (j in 1:cv.k) {
+x.tune <- data.frame(x.comb[split.ind == j,])
+y.tune <- data.frame(y.comb[split.ind == j,])
+x.train <- data.frame(x.comb[split.ind != j,])
+y.train <- data.frame(y.comb[split.ind != j,])
+
+classifier_knn <- knn(train = x.train, 
+                      test = x.tune, 
+                      cl = y.train[,1, drop = TRUE], 
+                      k = nn.k)
+
+
+cm = table(y.tune[,1, drop = TRUE], classifier_knn)
+Accuracy = (cm[1] + cm[5] + cm[9])/sum(cm)
+misClassError = misClassError + mean(classifier_knn != y.tune[,1, drop = TRUE]) 
+}
+return(misClassError/cv.k)
+}
+
+
+K <- 50 # Largest choice of k
+cv.err.k <- rep(0,K) # Vector of errors
+for (nn.k in 1:K) {
+cv.err.k[nn.k] <- CV.error(x.comb, y.comb, split.ind,nn.k, cv.k)
+}
+cv.min.k <- which.min(cv.err.k) # k with smallest error
+c(cv.min.k, min(cv.err.k))
+plot(1:50, cv.err.k, xlab = 'k values', ylab = 'mis-Class Error', main = 'mis-Class Error and k-values plot')
+```
+
+
+```{r}
+# Fitting KNN Model to training dataset 
+classifier_knn <- knn(train = x.comb, 
+                      test = x.test, 
+                      cl = y.comb[,1, drop = TRUE], 
+                      k = 1) 
+# Confusiin Matrix
+(cm = table(y.test[,1, drop = TRUE], classifier_knn))
+misClassError <- mean(classifier_knn != y.test[,1, drop = TRUE]) 
+print(paste('Accuracy =', 1-misClassError))
+```
+
+

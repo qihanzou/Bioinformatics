@@ -1,0 +1,339 @@
+---
+title: "BINF90001 ASMT1"
+author: "qihan zou"
+date: "2024-04-07"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Q1:
+#(a): Read all of the data into R as data frames (one data frame per file). Check that the study sizes reported above are correct. List the first 5 phenotypes in both Study 1 and Study 2.
+```{r}
+# Study1
+genotype1 <- read.csv("genotypes1.csv")
+phenotype1 <- read.csv("phenotype1.csv")
+dim(genotype1)
+dim(phenotype1)
+# Study2
+genotype2 <- read.csv("genotypes2.csv") 
+phenotype2 <- read.csv("phenotype2.csv")
+dim(genotype2)
+dim(phenotype2)
+# Study3
+genotype3 <- read.csv("genotypes3.csv")
+dim(genotype3)
+```
+# study sizes reported above are correct. 
+```{r}
+# first 5 phenotype in study 1
+head(phenotype1, 5)
+```
+```{r}
+# first 5 phenotype in study 2
+head(phenotype2, 5)
+```
+
+
+
+#(b): For each SNP in Study 1, fit a simple linear regression model for BMI against the SNP genotype (i.e. 200 separate models each with a single predictor) and record the p-value from testing the null hypothesis of no association between the SNP and BMI. Consider only the additive model (1 parameter) for each SNP, rather than the general model (2 parameters).
+```{r}
+# For study 1. Simple linear regression.
+m <- 200
+pval_seq <- 1:m
+for (i in 1:m){
+  fit <- lm(phenotype1[,2] ~ genotype1[,i+1])
+  pval_seq[i] = summary(fit)$coefficients[2,4]  # store the results
+}
+pval_seq = as.matrix(pval_seq) 
+```
+#generally, If the p-value is less than 0.05, then the parameter SNP is significant, and therefore, we should reject the null hypothesis of no association between SNP and BMI for this spcific SNP.
+
+
+
+#(c): Draw a Manhattan plot to visualise all of the p-values from these tests on a log10 scale. Briely describe what you conclude from this plot.
+```{r}
+plot(1:200, -log10(pval_seq)) # p values are in negative log10(). 
+abline(h = -log10(0.05)) # for the log10 scale p = 0.05
+```
+# The soild black horizontal line if for -log10(0.05). We can conlcued that most of coefficents SNP for BMI have a p value larger than 0.05, there may not exist association between these SNP and BMI. Some of them are smaller than 0.05 and we should reject the null hypothesis of no association between SNP and BMI for them.
+
+
+#(d): Which SNP has the smallest p-value? What is the p-value?
+```{r}
+which(pval_seq == min(pval_seq))
+min(pval_seq)
+```
+# The SNP052 has the smallest p-value. The p-value is 2.28028e-07.
+
+
+
+
+# Q2:
+# (a): You decide to combine studies 1 and 2 together. This requires making the phenotypes to be equivalent. Convert the phenotype from Study 1 to be the same as for Study 2, and then combine the two studies by creating a single data frame for the phenotype and one for the genotypes.
+
+#Overweight if BMI> 25 kg/m^2 and will be TRUE otherwise FALSE.
+```{r}
+#Convert the phenotype from Study 1 to be the same as for Study 2 
+overweight <- phenotype1$BMI > 25
+phenotype1_TF <- data.frame(cbind(phenotype1, overweight)) # for BMI>25 -> True, <25 -> False.
+phenotype1_TF <- subset(phenotype1_TF, select = -2)
+#combine the two studies by creating a single data frame for the phenotype and one for the genotypes:
+phenotype_all <- data.frame(rbind(phenotype1_TF, phenotype2)) # dim 2000x2, correct.
+genotype_12 <- data.frame(rbind(genotype1, genotype2))
+```
+
+
+#(b): For the combined data, test each SNP for association with overweight status and record the 200 p-values. Again, consider only an additive genetic model.
+```{r}
+# For study 1 and study 2 with dummy variable. Simple linear regression.
+m_all <- 200
+pval_seq_all <- 1:m_all
+for (j in 1:m_all){
+  fit_all <- lm(phenotype_all[,2] ~ genotype_12[,j+1])
+  pval_seq_all[j] = summary(fit_all)$coefficients[2,4]  # store the results
+}
+pval_seq_all = as.matrix(pval_seq_all) 
+```
+
+
+
+#(c): Draw a Manhattan plot to visualise the p-values from these tests on a log10 scale. Briely describe what you conclude from this plot.
+```{r}
+plot(1:200, -log10(pval_seq_all)) # p values are in negative log10(). 
+abline(h = -log10(0.05)) # for the log10 scale p = 0.05
+```
+#The soild black horizontal line if for -log10(0.05). from the plot, we can still conlcued that most of coefficents SNP for BMI have a p value larger than 0.05, there may not exist association between these SNP and BMI. Some of them are smaller than 0.05 and we should reject the null hypothesis of no association between SNP and BMI for them. The pattern with 2000 individuals are similar as the pattern in Q1 (with 500 individuals), there exist some relationship between some SNPs and BMI.
+
+#(d): Which SNP has the smallest p-value? What is the p-value?
+```{r}
+which(pval_seq_all == min(pval_seq_all))
+min(pval_seq_all)
+```
+# Still the SNP052 has the smallest p-value. The p-value is 2.853124e-14.
+
+
+#(e) i: Report the number of SNPs that are significant using the Bonferroni method to control the family-wise error rate at 5% across the 200 tests.
+```{r}
+# Bonferroni method. 
+alpha <- 0.05
+alpha_star <- 0.05/200 # FWER
+# SNPs are significant if its p value less than FWER.
+(number_SNPs_significant <- sum(pval_seq_all < alpha_star))
+```
+# Therefore, there are 16 SNPs are significant using the Bonferroni method to control the FWER at 5% across the 200 tests.
+
+
+
+
+#(e) ii: Report the number of SNPs that are significant using the Benjamini & Hochberg method to control the false discovery rate (FDR) at 5% across the 200 tests.
+```{r}
+m = 200
+pvals_sorted <- sort(pval_seq_all)
+BH_threshold <- 0.05*seq(1,m)/m
+(number_SNPs_BH <- max(which(pvals_sorted <= BH_threshold)))
+```
+# Therefore, there are 29 SNPs are significant according to the BH method to control the false discovery rate (FDR) at 5% across the 200 tests.
+
+
+#(e) iii: Using the Storey method with lambda = 0.1, what is the expected number of null SNPs that are significant at level a* = 0.001. How many SNPs are observed to be significant at this level? What is the resulting FDR estimate?
+```{r}
+lambda <- 0.1
+alpha_star_iii <- 0.001
+estimate_fraction <- mean(pval_seq_all > lambda)/(1 - lambda) 
+#  the number of null SNPs with p-value < a*
+number_null_SNPs = estimate_fraction*200*alpha_star_iii 
+(number_p_less_alpha_star_iii <- sum(pval_seq_all < alpha_star_iii))
+(FDR_estimate <- number_null_SNPs/number_p_less_alpha_star_iii)
+```
+# Therefore, 21 SNPs are observed to be significant at level a* = 0.001. The FDR estimate is 0.007407407
+
+
+
+#(f): Describe how you would report the number of significantly associated SNPs from the association analysis in the combined study. How would you decide which SNPs to report as significant and how would you summarise the possibility of error?
+```{r}
+idx_Bonferroni <- which(pval_seq_all < alpha_star)
+sort(idx_Bonferroni)
+```
+```{r}
+idx_sort <- order(pval_seq_all)
+idx_BH <- idx_sort[1:29]
+sort(idx_BH)
+```
+```{r}
+idx_iii <- which(pval_seq_all < alpha_star_iii)
+sort(idx_iii)
+```
+#1. based on Bonferroni method, we can see there are 16 SNPs are significant, they are 38, 41, 44, 51, 52, 53, 54, 56, 79, 86, 89, 98, 103, 105, 106, 107. (index of SNPS). The family wise error rate is 5% acrosee 200 tests.
+
+#2. based on Benjamini&Hochberg method, there are 29 SNPS are signicant, they are 12, 23, 27, 33, 38, 41, 44, 46, 47, 51, 52, 53, 54, 55, 56, 59, 63, 79, 86, 89, 98, 101, 102, 103, 105, 106, 107, 130, 152. (index of SNPS). The false discovery rate is 5% across the 200 tests. 
+
+#3. at level a*=0.001, there are 21 SNPs are significant, they are 33, 38, 41, 44, 46, 47, 51, 52, 53, 54, 56, 79, 86, 89, 98, 101, 102, 103, 105, 106, 107. (index of SNPS). Based on Storey method, the FDR estimate is 0.007407407. 
+
+# Moreover, for strong conclusion, we may consider the significant SNPs based on Bonferroni method (which is the most conservative method) be the number of signifivcant associated SNPs from the association analysis in the combined study because the SNPs baed on Bonferroni are also significant in both 2. based on Benjamini&Hochberg method and 3. at level a*=0.001. These SNPs should be considered as most significant. The number is 16.
+
+# Furthermore, we can also relax our restrictions (do not need to be significant in all of three points above.), in this case, we can think all of SNPs reported above are signiciant, since they are found significant based on reasonable a* values, FWER and FDR. 
+
+
+
+# Q3: 
+#(a): Identify the SNPs with the 8 smallest p-values from the previous question, and report their p-values. 
+```{r}
+idx_low_to_high <- order(pval_seq_all)
+# 8 smallest p-values: 
+(idx_8_smallest <- idx_low_to_high[1:8])
+(pval_8_smallest <- pval_seq_all[idx_8_smallest])
+```
+# Therefore, the SNPs with the 8 smallest p values are 52, 51, 53, 107, 56, 105, 106, 54. The corresponding p-values are 2.853124e-14, 1.090388e-13, 5.688590e-11, 7.394690e-11, 1.073751e-10, 1.986769e-10, 5.010754e-10, 7.754202e-10. 
+
+
+#(b): Some of the significant SNPs may be in high linkage disequilibrium (LD). To investigate this, calculate the 8 × 8 correlation matrix between these 8 SNPs. What do you conclude about the results from the association analysis?
+```{r}
+#data_8_smallest <- genotype_12[idx_8_smallest+1]
+data_new <- cbind(genotype_12[51+1], genotype_12[52+1], 
+                  genotype_12[53+1], genotype_12[54+1], 
+                  genotype_12[56+1], genotype_12[105+1], 
+                  genotype_12[106+1], genotype_12[107+1])
+# this is the 8x8 correlation matrix between these 8 SNPs:
+(corr_matrix <- cor(data_new, data_new))
+#(corr_matrix1 <- cor(data_8_smallest, data_8_smallest))
+```
+# from the above correlation matrix, we can see some of SNPs seems have a very high correlation, and some of them with low correlation.
+
+
+
+#(c): Defining `high LD' to be a squared correlation coefficient > 0.5, identify the set of SNPs among the top 8 with the lowest p-values subject to no two SNPs in the set being in high LD with each other. (This process is called clumping and the resulting SNPs are called tag SNPs.)
+```{r}
+# high LD is a squared correlation coefficient > 0.5:
+(corr_matrix^2 > 0.5)
+```
+```{r}
+(corr_matrix^2 > 0.5)*1 # change to 0/1
+```
+
+# we need the sets that no two SNPs in the set being in high LD with each other. In above matrix, True is for corr^2 > 0.5 and False is for corr^2 <0.5. Therefore, we need to recgonise sets with SNPs with all False. We can see that, snp052, snp051, snp053, snp056, and snp054 all have high LD with each other. Similarly, snp107, snp105, and snp106 also have high LD with each other. Therefore, in one set, we cannot let number of snps from set1: (snp107, snp105, snp106) more than 1, and we cannot let number of snps from set2: (snp052, snp051, snp053, snp056, snp054) more than 1.
+
+# Furthermore, we can see if we choose one snp from set1 and one snp from set2, then they are not with high LD. Therefore, we should consider the following sets:
+
+#(snp105, snp051)
+#(snp105, snp052)
+#(snp105, snp053)
+#(snp105, snp054)
+#(snp105, snp056)
+
+#(snp106, snp051)
+#(snp106, snp052)
+#(snp106, snp053)
+#(snp106, snp054)
+#(snp106, snp056)
+
+#(snp107, snp051)
+#(snp107, snp052)
+#(snp107, snp053)
+#(snp107, snp054)
+#(snp107, snp056)
+
+#They are the set of SNPs among the top 8 with the lowest p-values subject to no two SNPs in the set being in high LD with each other. We can choose one of these sets to be our tag SNPs.
+
+
+#Q4: 
+#(a): Fit a logistic regression model that includes all of the tag SNPs, as identified in the previous question, as predictors (additive effects only, like the previous models). report the parameters estimates and standard errors.
+```{r}
+y = as.integer(as.logical(phenotype_all$overweight))
+x1 = genotype_12[51+1]$snp051
+x2 = genotype_12[105+1]$snp105
+m_logistic <- glm( y ~ x1 + x2, family = "binomial") # additive effect only
+summary(m_logistic)
+(est <- coef(summary(m_logistic)))
+```
+# Therefore, the estimate for the intecept is -1.04238 with standard error 0.06824, for snp51 is 0.55717 with standard error 0.08458, for snp105 is 0.40410 with standard error 0.07382.
+
+
+#(b): For each SNP, report the effect size as an odds ratio (OR) and explain how to interpret it.
+
+```{r}
+# x1 is snp051, x2 is snp105
+exp(m_logistic$coefficients)
+```
+# # x1 is snp051, x2 is snp105. 
+# our Y is the overweight status (1 if overweight and 0 otherwise). The odds of Y=1 that overweight increases multiplicatively by exp(beta) for each 1 unit increase in x. therefore, exp(beta1) where beta1 is the estimated coefficent of snp051 is the OR of overweight due to 1 extra increase in value of snp051. Similarly, exp(beta2) where beta2 is the estimated coefficent of snp105 is the OR of overweight due to 1 extra increase in value of snp105. Therefore, exp(beta1*snp051) is the multiplicative increase in odds of overweigh for an target individual who's snp051 value with 1 more unit than the baseline (an individual snp051 value less than target individual with 1 unit). Similar for snp105. In addition, beta0 for the intecept is the log odds of the overweight when x1 and x2 are zero.
+
+
+
+
+#(c): Report 95% confidence intervals for each OR.
+```{r}
+# The 95% CI for each OR as following:
+exp(confint.default(m_logistic))
+```
+# # x1 is snp051, x2 is snp105.
+
+
+# Q5:
+# (a): Using your fitted model from Q4, compute the risk (probability of being overweight) for all individuals in Study 3.
+```{r}
+x1 = genotype3[51+1]$snp051
+x2 = genotype3[105+1]$snp105
+pred_data = data.frame(x1,x2)
+#betahat = as.matrix(c(-1.0423800, 0.5571729, 0.4040957))
+pred = predict(m_logistic, newdata = pred_data)
+#pred_data1 = as.matrix(data.frame(1, x1,x2))
+#pred_Xb = pred_data1%*%betahat
+#pred1 = predict(m_logistic, newdata = pred_data1) # same results.
+
+# prob(overweight) = P(Y=1) = exp(Xb)/(1+exp(Xb))
+(risk = exp(pred)/(1+exp(pred)))
+```
+
+# (b): Plot the risks with the individuals sorted in order of increasing risk.
+```{r}
+sort_risk = sort(risk)
+order_risk = order(risk)
+plot(sort(risk), xlab = 'index', ylab = 'risk', main = 'risks with individuals of increasing risk')
+```
+# The index of the above plot from 1 to 100, which indicates the individuals according to the following:
+```{r}
+ind = 2001:2100
+data_risk = data.frame(cbind(ind, risk))
+data_risk$ind[order_risk]
+```
+# That is, index 1 in the plot corresponding to indiv2002, index 2 corresponding to indiv2003 ...... index 100 in the plot correspoinding to indiv2001 and so on.
+
+
+
+# (c): What is the risk for indiv2001?
+```{r}
+# The risk for indiv2001: since indiv2001 corresponding to index 1 in data_risk:
+data_risk$risk[1]
+```
+# Hence the risk for indiv2001 is 0.5800513.
+
+
+
+# (d): Lifestyle factors also have an impact on the risk of being overweight, not just genetic factors. Positive lifestyle (such as a good diet and regular exercise) can reduce the risk. For simplicity, suppose that lifestyle and genetic factors act independently. 
+
+#For indiv2001, how strong would the lifestyle factors collectively need to be (expressed as an odds ratio) in order to counteract the genetic risk (ie. to make the overall risk be equivalent to the lowest predicted risk based on the SNP genotypes)?
+
+```{r}
+(risk_indiv2001 = data_risk$risk[1])
+(risk_lowest = min(data_risk$risk)) # lowest predicted risk.
+```
+
+```{r}
+# odds ratio for indiv2001:
+#risk_indiv2001/(1-risk_indiv2001)
+# odds ratio for lowest:
+#risk_lowest/(1-risk_lowest)
+
+# The risk must reduce:
+p = risk_indiv2001 - risk_lowest
+(odd_p = p/(1-p))
+```
+# Therefore, the lifestyle factor should be abled to reduce the odd by 0.5530998.
+
+
+
